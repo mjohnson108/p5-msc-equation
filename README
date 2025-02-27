@@ -1,16 +1,41 @@
-Math-Symbolic-Custom-Equation
+Math::Symbolic::Custom::Equation
+================================
 
-The README is used to introduce the module and provide instructions on
-how to install the module, any machine dependencies it may have (for
-example C compilers and installed libraries) and any other information
-that should be provided before the module is installed.
+This class implements methods for equating two Math::Symbolic expressions, and performing various operations on that equation.
 
-A README file is required for CPAN modules since CPAN extracts the README
-file from a module distribution so that people browsing the archive
-can use it to get an idea of the module's uses. It is usually a good idea
-to provide version information here so that people can decide whether
-fixes for the module are worth downloading.
+Please note that the methods/interfaces documented below are subject to change in later versions.
 
+use strict;
+use Math::Symbolic qw(:all);
+use Math::Symbolic::Custom::Equation;
+
+# we have two symbolic expressions
+my $expr1 = parse_from_string('a - n'); 
+my $expr2 = parse_from_string('(a + 2) / n');
+
+# equate them
+my $eq = Math::Symbolic::Custom::Equation->new($expr1, $expr2);
+print $eq->to_string(), "\n"; # a - n = (a + 2) / n
+
+# We want an expression for a
+my ($a_eq, $type) = $eq->isolate('a');
+unless ( defined($a_eq) && ($type == 1) ) {
+    die "Could not isolate 'a'!\n";
+}
+print $a_eq->to_string(), "\n"; # a = (2 + (n ^ 2)) / (n - 1)
+
+# we want values of a for various values of n
+my $expr3 = $a_eq->RHS();
+foreach my $n (2..5) {
+    my $a_val = $expr3->value({'n' => $n});
+    # check these values on original equation
+    if ( $eq->holds({'a' => $a_val, 'n' => $n}) ) {
+        print "At n = $n, a = $a_val\n";
+    }
+    else {
+        print "Error for n = $n, a = $a_val\n";
+    }
+}
 
 INSTALLATION
 
