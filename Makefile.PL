@@ -14,14 +14,29 @@ my %WriteMakefileArgs = (
         'ExtUtils::MakeMaker' => '0',
     },
     TEST_REQUIRES => {
-        'Test::More' => '0',
+        'Test::Simple' => '0',
     },
     PREREQ_PM => {
-        #'ABC'              => '1.6',
-        #'Foo::Bar::Module' => '5.0401',
+        'Math::Symbolic'                        =>  '0.613',
+        'Math::Symbolic::Custom::Collect'       =>  '0.32',
+        'Math::Symbolic::Custom::Factor'        =>  '0.13',
     },
     dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean => { FILES => 'Math-Symbolic-Custom-Equation-*' },
+    META_MERGE => {
+        'meta-spec' => { version => 2 },
+         resources => {
+             repository => {
+                 type => 'git',
+                 url  => 'https://github.com/mjohnson108/p5-msc-equation.git',
+                 web  => 'https://github.com/mjohnson108/p5-msc-equation',
+             },
+             bugtracker => {
+                 web => 'https://github.com/mjohnson108/p5-msc-equation/issues'
+             },
+             homepage   => 'https://github.com/mjohnson108/',
+         },
+    },
 );
 
 # Compatibility with old versions of ExtUtils::MakeMaker
