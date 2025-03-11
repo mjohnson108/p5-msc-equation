@@ -23,7 +23,7 @@ our $VERSION = '0.2';
 
 our $EQ_PH = 'EQ';
 
-use Math::Symbolic qw(:all);
+use Math::Symbolic 0.613 qw(:all);
 use Math::Symbolic::Custom::Collect 0.32;
 use Math::Symbolic::Custom::Factor 0.13;
 
