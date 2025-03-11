@@ -31,40 +31,60 @@ use Math::Symbolic::Custom::Factor 0.13;
 
 This class implements methods for equating two Math::Symbolic expressions, and performing various operations on that equation.
 
-Please note that the methods/interfaces documented below are subject to change in later versions.
-
-=head1 SYNOPSIS
+=head1 EXAMPLE
 
     use strict;
-    use Math::Symbolic qw(:all);
-    use Math::Symbolic::Custom::Equation;
+    use Math::Symbolic 0.613 qw(:all);
+    use Math::Symbolic::Custom::Equation 0.2;
+    use Math::Symbolic::Custom::Polynomial 0.3;
+    use Math::Symbolic::Custom::CollectSimplify 0.2;
+    Math::Symbolic::Custom::CollectSimplify->register();
 
-    # we have two symbolic expressions
-    my $expr1 = parse_from_string('a - n'); 
-    my $expr2 = parse_from_string('(a + 2) / n');
+    # Solve the simultaneous equations:-
+    # x - 2*y = 7
+    # x^2 + 4*y^2 = 37
+    my $eq1 = Math::Symbolic::Custom::Equation->new('x - 2*y = 7');
+    my $eq2 = Math::Symbolic::Custom::Equation->new('x^2 + 4*y^2 = 37');
 
-    # equate them
-    my $eq = Math::Symbolic::Custom::Equation->new($expr1, $expr2);
-    print $eq->to_string(), "\n"; # a - n = (a + 2) / n
+    print "Solve the simultaneous equations:-\n\n";
+    print "\t[1]\t", $eq1->to_string(), "\n";
+    print "\t[2]\t", $eq2->to_string(), "\n\n";
 
-    # We want an expression for a
-    my ($a_eq, $type) = $eq->isolate('a');
-    unless ( defined($a_eq) && ($type == 1) ) {
-        die "Could not isolate 'a'!\n";
+    # Make x the subject of eq. 1
+    my $eq1_x = $eq1->isolate('x');
+    die "Cannot isolate 'x' in " . $eq1->to_string() . "\n" unless defined $eq1_x;
+    print "Make x the subject of [1]: ", $eq1_x->to_string(), "\n\n";
+    my $x_expr = $eq1_x->RHS();
+
+    # Substitute into eq. 2, re-arrange to make RHS = 0, and simplify
+    my $eq3 = $eq2->implement('x' => $x_expr)->simplify();
+    print "Substitute into [2]: ", $eq3->to_string(), "\n\n";
+
+    # Re-arrange it to equal 0
+    my $eq3_2 = $eq3->to_zero()->simplify();
+    print "Rearrange to equal zero: ", $eq3_2->to_string(), "\n\n";
+
+    # we have an expression for y, solve it
+    my ($var, $coeffs, $disc, $roots) = $eq3_2->LHS()->test_polynomial();
+    die "Cannot solve quadratic!\n" unless defined($var) && ($var eq 'y');
+
+    my $y_1 = $roots->[0];
+    my $y_2 = $roots->[1];
+    print "The solutions for y are: ($y_1, $y_2)\n\n";
+
+    # put these solutions into the expression for x in terms of y to get x values
+    my $x_1 = $eq1_x->implement('y' => $y_1)->simplify()->RHS();
+    my $x_2 = $eq1_x->implement('y' => $y_2)->simplify()->RHS();
+    print "The solutions for x given y are: (x = $x_1 when y = $y_1) and (x = $x_2 when y = $y_2)\n\n";
+
+    # Check that these solutions hold for the original equations
+    print "Check: ";
+    if ( $eq1->holds({'x' => $x_1, 'y' => $y_1}) && $eq2->holds({'x' => $x_1, 'y' => $y_1}) ) {
+        print "Solution (x = $x_1, y = $y_1) holds for [1] and [2]\n";
     }
-    print $a_eq->to_string(), "\n"; # a = (2 + (n ^ 2)) / (n - 1)
-
-    # we want values of a for various values of n
-    my $expr3 = $a_eq->RHS();
-    foreach my $n (2..5) {
-        my $a_val = $expr3->value({'n' => $n});
-        # check these values on original equation
-        if ( $eq->holds({'a' => $a_val, 'n' => $n}) ) {
-            print "At n = $n, a = $a_val\n";
-        }
-        else {
-            print "Error for n = $n, a = $a_val\n";
-        }
+    print "Check: ";
+    if ( $eq1->holds({'x' => $x_2, 'y' => $y_2}) && $eq2->holds({'x' => $x_2, 'y' => $y_2}) ) {
+        print "Solution (x = $x_2, y = $y_2) holds for [1] and [2]\n";
     }
 
 =head1 METHODS
@@ -231,8 +251,8 @@ sub holds {
 
 =head2 Method simplify
 
-Takes no parameters. Calls Math::Symbolic's simplify() on both sides of the equation (or whichever simplify() is currently 
-registered). Currently returns 0 on failure and 1 on success.
+Takes no parameters. Calls Math::Symbolic's simplify() (or whichever simplify() is currently 
+registered) on both sides of the equation. If successful returns a new (simplifed) equation object, otherwise undef.
 
 =cut
 
@@ -257,6 +277,12 @@ sub simplify {
     return undef; # simplify failed
 }
 
+=head2 Method implement
+
+Calls Math::Symbolic's implement() on both sides of the equation. This can be used to substitute a specified variable with another 
+Math::Symbolic expression (see the example above). If successful returns a new equation object, otherwise undef.
+
+=cut
 
 sub implement {
     my $self = shift;
@@ -279,8 +305,6 @@ sub implement {
     
     return undef;
 }
-
-
 
 sub _transform {
     my $self = shift;
@@ -321,10 +345,9 @@ sub _transform {
 
 =head2 Method add
 
-Takes one parameter, a Math::Symbolic expression or a text string which can parse to a Math::Symbolic
-expression. 
-
-Adds the passed expression to both sides of the equation.
+Takes one parameter, which can be another equation object, or a Math::Symbolic expression (or a text string which can parse to a 
+Math::Symbolic expression). If passed an equation then it will perform equation addition, or if passed an expression it will add 
+the passed expression to both sides of the equation. Returns a new equation object.
 
 =cut
 
@@ -352,52 +375,11 @@ sub add {
     }
 }
 
-=head2 Method multiply
-
-Takes one parameter, a Math::Symbolic expression or a text string which can parse to a Math::Symbolic
-expression. 
-
-Multiplies the passed expression with both sides of the equation.
-
-=cut
-
-sub multiply {
-    my $self = shift;
-    my $t = shift;
-
-    $t = Math::Symbolic::parse_from_string($t) if ref($t) !~ /^Math::Symbolic/;
-
-    my $operation = Math::Symbolic::Operator->new('*', $t, Math::Symbolic::Variable->new($EQ_PH));
-
-    return $self->_transform($operation);
-}
-
-=head2 Method divide
-
-Takes one parameter, a Math::Symbolic expression or a text string which can parse to a Math::Symbolic
-expression. 
-
-Divides both sides of the equation by the passed expression.
-
-=cut
-
-sub divide {
-    my $self = shift;
-    my $t = shift;
-
-    $t = Math::Symbolic::parse_from_string($t) if ref($t) !~ /^Math::Symbolic/;
-
-    my $operation = Math::Symbolic::Operator->new('/', Math::Symbolic::Variable->new($EQ_PH), $t);
-
-    return $self->_transform($operation);
-}
-
 =head2 Method subtract
 
-Takes one parameter, a Math::Symbolic expression or a text string which can parse to a Math::Symbolic
-expression. 
-
-Subtracts the passed expression from both sides of the equation.
+Takes one parameter, which can be another equation object, or a Math::Symbolic expression (or a text string which can parse to a 
+Math::Symbolic expression). If passed an equation then it will perform equation subtraction, or if passed an expression it will subtract
+the passed expression to from sides of the equation. Returns a new equation object.
 
 =cut
 
@@ -425,10 +407,50 @@ sub subtract {
     }
 }
 
+=head2 Method multiply
+
+Takes one parameter, a Math::Symbolic expression or a text string which can parse to a Math::Symbolic
+expression. 
+
+Multiplies the passed expression with both sides of the equation and returns a new equation object.
+
+=cut
+
+sub multiply {
+    my $self = shift;
+    my $t = shift;
+
+    $t = Math::Symbolic::parse_from_string($t) if ref($t) !~ /^Math::Symbolic/;
+
+    my $operation = Math::Symbolic::Operator->new('*', $t, Math::Symbolic::Variable->new($EQ_PH));
+
+    return $self->_transform($operation);
+}
+
+=head2 Method divide
+
+Takes one parameter, a Math::Symbolic expression or a text string which can parse to a Math::Symbolic
+expression. 
+
+Divides both sides of the equation by the passed expression and returns a new equation object.
+
+=cut
+
+sub divide {
+    my $self = shift;
+    my $t = shift;
+
+    $t = Math::Symbolic::parse_from_string($t) if ref($t) !~ /^Math::Symbolic/;
+
+    my $operation = Math::Symbolic::Operator->new('/', Math::Symbolic::Variable->new($EQ_PH), $t);
+
+    return $self->_transform($operation);
+}
+
 =head2 Method to_zero
 
-Takes no parameters. Re-arranges the equation to equate to zero, by 
-subracting the right-hand side from both sides.
+Takes no parameters. Re-arranges the equation to equate to zero, by subracting the right-hand side from both sides.
+Returns a new equation object.
 
     my $eq = Math::Symbolic::Custom::Equation->new('3*x^3 - 2*x^2 + 5*x - 10 = 5*x + 8');
     $eq->to_zero();
@@ -487,37 +509,25 @@ sub explicit_signature {
 
 Takes a Math::Symbolic::Variable, or a string which parses to a Math::Symbolic::Variable, as a 
 parameter. This method attempts to re-arrange the equation to make that variable the subject of
-the equation. It will return undef if it doesn't succeed.
+the equation, returning new equation object(s). It will return undef if it doesn't succeed.
 
-Currently it returns a new Equation object containing the re-arranged equation, and a flag indicating 
-how well it managed to achieve its goal. If the flag is 1, then it successfully isolated the variable.
-If it is 2, then it managed to move all instances of the variable to the left-hand side. If it
-is 3, then there are instances of the variable on both sides of the equation. To illustrate:-
+When called in a scalar context, it will return the first (simplest) result it can find. When called
+in a list context it will return all the results it can find.
 
-    my ($new_eq, $type);
+    my $eq = Math::Symbolic::Custom::Equation->new('v^2 = u^2 + 2*a*s');
+    my $hit = $eq->isolate('u');
+    print "Result 1: ", $hit->to_string(), "\n\n";
+    # Result 1: u = ((v ^ 2) - ((2 * a) * s)) ^ (1 / 2)
 
-    my $eq1 = Math::Symbolic::Custom::Equation->new('y = 2*x + 4');
-    print "Original equation: '", $eq1->to_string(), "'\n"; 
-    # Original equation: 'y = (2 * x) + 4'
-    ($new_eq, $type) = $eq1->isolate('x');
-    print "Isolating 'x', got: '", $new_eq->to_string(), "' (flag = $type)\n"; 
-    # Isolating 'x', got: 'x = (y - 4) / 2' (flag = 1)
-
-    my $eq2 = Math::Symbolic::Custom::Equation->new('v^2 = u^2 + 2*a*s');
-    print "Original equation: '", $eq2->to_string(), "'\n"; 
-    # Original equation: 'v ^ 2 = (u ^ 2) + ((2 * a) * s)'
-    ($new_eq, $type) = $eq2->isolate('u');
-    print "Isolating 'u', got: '", $new_eq->to_string(), "' (flag = $type)\n"; 
-    # Isolating 'u', got: 'u ^ 2 = (v ^ 2) - ((2 * a) * s)' (flag = 2)
-
-    my $eq3 = Math::Symbolic::Custom::Equation->new('s = u*t + (1/2) * a * t^2');
-    print "Original equation: '", $eq3->to_string(), "'\n"; 
-    # Original equation: 's = (u * t) + (((1 / 2) * a) * (t ^ 2))'
-    ($new_eq, $type) = $eq3->isolate('t');
-    print "Isolating 't', got: '", $new_eq->to_string(), "' (flag = $type)\n"; 
-    # Isolating 't', got: 't = (2 * s) / ((2 * u) + (a * t))' (flag = 3)
-
-This interface and approach is likely to change significantly in later versions.
+    my @hits = $eq->isolate('u');
+    foreach my $hit (@hits) {
+        print "Result 2: ", $hit->to_string(), "\t";
+    }
+    # Result 2: u = ((v ^ 2) - ((2 * a) * s)) ^ (1 / 2)
+    # Result 2: u = -1 * (((v ^ 2) - ((2 * a) * s)) ^ (1 / 2))
+    
+Warning: this is very different to how it worked in the previous version of the module, and it probably
+has a way to go yet.
 
 =cut
 
@@ -649,7 +659,7 @@ sub isolate {
     if ( scalar(@matches) ) {
         if ( wantarray ) {
 
-            my @reduced = map { $_->[0] } @matches;
+            my @reduced = sort { $a->_complexity() <=> $b->_complexity() } map { $_->[0] } @matches;
             return @reduced;
         }
         else {           
